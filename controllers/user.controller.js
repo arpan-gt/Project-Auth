@@ -1,13 +1,15 @@
-import { signInSchema, signUpSchema } from "../schemas/userSchema.js";
+import { loginSchema, registerSchema } from "../schemas/userSchema.js";
 import { User } from "../models/User.models.js";
 import { treeifyError } from "zod";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 //register
 const register = async (req, res) => {
   try {
-    const result = signUpSchema.safeParse(req.body);
+    const result = registerSchema.safeParse(req.body);
 
     if (!result.success) {
       return res.status(400).json({
@@ -59,12 +61,12 @@ const register = async (req, res) => {
       from: process.env.MAILTRAP_SENDEREMAIL,
       to: user.email,
       subject: "verify your email",
-      text: "Hello world?",
+      text: `Hello ${user.userName},\nPlease verify your email by clicking the link below:\n${process.env.BASE_URL}/verify-email/${token}\nThis link will expire in 15 minutes.`,
       html: `
           <h2>Email Verification</h2>
           <p>Hello ${user.userName},</p>
           <p>Please verify your email by clicking the link below:</p>
-          <a href="${process.env.CLIENT_URL}/verify-email?token=${token}">Verify Email</a>
+          <a href="${process.env.BASE_URL}/verify-email/${token}">Verify Email</a>
           <p>This link will expire in 15 minutes.</p>
         `,
     });
@@ -87,9 +89,9 @@ const register = async (req, res) => {
 };
 
 // verify email
-const verifyEmail = async (req, res) => {
+const verifyUser = async (req, res) => {
   try {
-    const { token } = req.query;
+    const { token } = req.params;
 
     if (!token) {
       return res.status(400).json({
@@ -124,4 +126,66 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-export { register, verifyEmail };
+// login
+const login = async (req, res) => {
+  const result = loginSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({
+      message: "Validation failed",
+      errors: treeifyError(result.error),
+    });
+  }
+
+  const { email, password } = result.data;
+  try {
+    const existingUser = await User.findOne({ email }).select("+password");
+    if (!existingUser) {
+      return res.status(400).json({
+        message: "Email not registered",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, existingUser.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        message: "Invalid password",
+      });
+    }
+
+    const isVerified = existingUser.isVerified;
+    if (!isVerified) {
+      return res.status(403).json({
+        message: "Please verify your email",
+      });
+    }
+
+    const token = jwt.sign(
+      { id: existingUser._id },
+      process.env.JWT_USER_SECRET,
+      {
+        expiresIn: "24h",
+      }
+    );
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      maxAge: 24 * 60 * 60 * 1000,
+    };
+    res.cookie("access_token", token, cookieOptions);
+
+    return res.status(200).json({
+      message: "Login successfully",
+      user: {
+        id: existingUser._id,
+        name: existingUser.userName,
+      },
+    });
+  } catch (err) {
+    console.log("Login error", err);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+export { register, verifyUser, login };
