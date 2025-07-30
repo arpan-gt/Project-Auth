@@ -1,7 +1,9 @@
 import express from "express";
-const userRouter=express.Router();
-import {signUp} from "../controllers/user.controller.js"
+const userRouter = express.Router();
+import { login, register, verifyUser } from "../controllers/user.controller.js";
 
-userRouter.post("/signup",signUp)
+userRouter.post("/register", register);
+userRouter.get("/verify-email/:token", verifyUser);
+userRouter.post("/login", login);
 
-export {userRouter}
+export { userRouter };
