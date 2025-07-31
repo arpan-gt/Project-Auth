@@ -54,14 +54,15 @@ cd ~/Desktop/auth
 3. Create .env file
    Create a file named .env in the root
     _________________________
-    |     PORT=                                                              
-    |     MONGO_URL=  
+    |    PORT=                                                              
+    |    MONGO_URL=  
          MAILTRAP_PORT=
          MAILTRAP_USERNAME=
          MAILTRAP_PASSWORD=
          MAILTRAP_SENDEREMAIL=
          CLIENT_URL=      
          MAILTRAP_HOST=
+         JWT_USER_SECRET=
     
     |_______________________|
    Replace values as needed.
